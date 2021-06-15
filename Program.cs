@@ -9,6 +9,8 @@ namespace ImageStuffer
 {
     class Program
     {
+        static readonly string configPath = "Directories.json";
+
         static void Main(string[] args)
         {
             new Program();
@@ -32,20 +34,18 @@ namespace ImageStuffer
         {
             string directoriesString = "";
 
-            if (!File.Exists("/Directories.json"))
+            if (!File.Exists(configPath))
             {
                 DirectoryConfig directoryConfig = new DirectoryConfig(Directory.GetCurrentDirectory(), Directory.GetCurrentDirectory(), 90);
-                List<DirectoryConfig> tempDirectory = new List<DirectoryConfig>();
-                tempDirectory.Add(directoryConfig);
 
-                using (StreamWriter streamWriter = new StreamWriter("/Directories.json"))
+                using (StreamWriter streamWriter = new StreamWriter(configPath))
                 {
-                    streamWriter.Write(JsonConvert.SerializeObject(tempDirectory, Formatting.Indented));
+                    streamWriter.Write(JsonConvert.SerializeObject(new List<DirectoryConfig> { directoryConfig }, Formatting.Indented));
                     streamWriter.Close();
                 }
             }
 
-            using (StreamReader streamReader = new StreamReader("/Directories.json"))
+            using (StreamReader streamReader = new StreamReader(configPath))
             {
                 directoriesString = streamReader.ReadToEnd();
                 streamReader.Close();
@@ -69,8 +69,10 @@ namespace ImageStuffer
             // Load & Save images.
             FileInfo[] files = new DirectoryInfo(config.sourceDirectory).GetFiles();
 
-            JpegEncoder jpegEncoder = new JpegEncoder();
-            jpegEncoder.Quality = config.quality;
+            JpegEncoder jpegEncoder = new JpegEncoder
+            {
+                Quality = config.quality
+            };
 
             foreach (FileInfo fileInfo in files)
             {
