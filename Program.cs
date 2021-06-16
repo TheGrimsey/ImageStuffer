@@ -4,6 +4,7 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace ImageStuffer
 {
@@ -23,11 +24,8 @@ namespace ImageStuffer
             // Load directories.
             LoadDirectoryJson();
 
-            // Process directories.
-            foreach(DirectoryConfig config in directories)
-            {
-                ProcessDirectory(config);
-            }
+            // Process directories in parallel.
+            Parallel.For(0, directories.Count, i => ProcessDirectory(directories[i]));
         }
 
         void LoadDirectoryJson()
@@ -54,36 +52,43 @@ namespace ImageStuffer
             directories = JsonConvert.DeserializeObject<List<DirectoryConfig>>(directoriesString);
         }
 
-        void ProcessDirectory(in DirectoryConfig config)
+        void ProcessDirectory(DirectoryConfig config)
         {
-            if(!new DirectoryInfo(config.sourceDirectory).Exists)
+            DirectoryInfo sourceDirectory = new DirectoryInfo(config.sourceDirectory);
+            DirectoryInfo targetDirectory = new DirectoryInfo(config.targetDirectory);
+
+            // Check directories.
+            if (!sourceDirectory.Exists)
             {
                 Console.WriteLine("Directory does not exist: " + config.sourceDirectory);
                 return;
             }
+            targetDirectory.Create();
 
-            new DirectoryInfo(config.targetDirectory).Create();
+            // Grab file infos..
+            FileInfo[] files = sourceDirectory.GetFiles();
 
-            Console.WriteLine("Processing directory: " + config.sourceDirectory);
-
-            // Load & Save images.
-            FileInfo[] files = new DirectoryInfo(config.sourceDirectory).GetFiles();
+            Console.WriteLine("Processing directory: " + sourceDirectory.FullName + ", Found " + files.Length + " files.");
 
             JpegEncoder jpegEncoder = new JpegEncoder
             {
                 Quality = config.quality
             };
 
-            foreach (FileInfo fileInfo in files)
+            // Process files in parallel as well.
+            Parallel.For(0, files.Length, i =>
             {
-                if (Image.DetectFormat(fileInfo.FullName) == null)
-                    continue;
-
-                using (Image image = Image.Load(fileInfo.FullName))
+                string filePath = config.targetDirectory + Path.DirectorySeparatorChar + files[i].Name.Replace(files[i].Extension, ".jpg");
+                if (Image.DetectFormat(files[i].FullName) != null && !File.Exists(filePath))
                 {
-                    image.SaveAsJpeg(config.targetDirectory + Path.DirectorySeparatorChar + fileInfo.Name.Replace(fileInfo.Extension, ".jpg"), jpegEncoder);
+                    using (Image image = Image.Load(files[i].FullName))
+                    {
+                        image.SaveAsJpeg(filePath, jpegEncoder);
+                    }
                 }
-            }
+            });
+
+            Console.WriteLine("Directory done: " + config.sourceDirectory);
         }
     }
 }
